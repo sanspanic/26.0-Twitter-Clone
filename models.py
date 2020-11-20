@@ -14,6 +14,9 @@ class Follows(db.Model):
 
     __tablename__ = 'follows'
 
+    def __repr__(self):
+        return f"<user being followed #: {self.user_being_followed_id}, user following #:{self.user_following_id}>"
+
     user_being_followed_id = db.Column(
         db.Integer,
         db.ForeignKey('users.id', ondelete="cascade"),
@@ -31,6 +34,9 @@ class Likes(db.Model):
     """Mapping user likes to warbles."""
 
     __tablename__ = 'likes' 
+
+    def __repr__(self):
+        return f"<Like with used #:{self.user_id} and message #: {self.message_id}>"
 
     id = db.Column(
         db.Integer,
@@ -53,6 +59,9 @@ class User(db.Model):
     """User in the system."""
 
     __tablename__ = 'users'
+
+    def __repr__(self):
+        return f"<User #{self.id}: {self.username}, {self.email}>"
 
     id = db.Column(
         db.Integer,
@@ -115,9 +124,6 @@ class User(db.Model):
         secondary="likes"
     )
 
-    def __repr__(self):
-        return f"<User #{self.id}: {self.username}, {self.email}>"
-
     def is_followed_by(self, other_user):
         """Is this user followed by `other_user`?"""
 
@@ -132,10 +138,7 @@ class User(db.Model):
 
     @classmethod
     def signup(cls, username, email, password, image_url):
-        """Sign up user.
-
-        Hashes password and adds user to system.
-        """
+        """Sign up user. Hashes password and adds user to system."""
 
         hashed_pwd = bcrypt.generate_password_hash(password).decode('UTF-8')
 
@@ -151,14 +154,8 @@ class User(db.Model):
 
     @classmethod
     def authenticate(cls, username, password):
-        """Find user with `username` and `password`.
-
-        This is a class method (call it on the class, not an individual user.)
-        It searches for a user whose password hash matches this password
-        and, if it finds such a user, returns that user object.
-
-        If can't find matching user (or if password is wrong), returns False.
-        """
+        """Searches for a user whose password hash matches this password
+        and, if it finds such a user, returns that user object. If can't find matching user (or if password is wrong), returns False."""
 
         user = cls.query.filter_by(username=username).first()
 
@@ -174,6 +171,9 @@ class Message(db.Model):
     """An individual message ("warble")."""
 
     __tablename__ = 'messages'
+
+    def __repr__(self):
+        return f"<Message #{self.id} by User #{self.user_id}: {self.text}, {self.timestamp}>"
 
     id = db.Column(
         db.Integer,
@@ -193,7 +193,7 @@ class Message(db.Model):
 
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey('users.id', ondelete='CASCADE'),
+        db.ForeignKey('users.id', ondelete='cascade'),
         nullable=False,
     )
 
@@ -201,10 +201,7 @@ class Message(db.Model):
 
 
 def connect_db(app):
-    """Connect this database to provided Flask app.
-
-    You should call this in your Flask app.
-    """
+    """Connects this database to Flask app."""
 
     db.app = app
     db.init_app(app)

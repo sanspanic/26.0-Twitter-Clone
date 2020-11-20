@@ -1,9 +1,4 @@
-"""Generate CSVs of random data for Warbler.
-
-Students won't need to run this for the exercise; they will just use the CSV
-files that this generates. You should only need to run this if you wanted to
-tweak the CSV formats or generate fewer/more rows.
-"""
+"""Generate CSVs of random data for Warbler."""
 
 import csv
 from random import choice, randint, sample

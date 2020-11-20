@@ -3,9 +3,10 @@ import os
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
+from secrets import development_secret_key
 
-from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from forms import UserAddForm, LoginForm, MessageForm, UpdateUserForm
+from models import db, connect_db, User, Message, Likes, Follows
 
 CURR_USER_KEY = "curr_user"
 
@@ -17,9 +18,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
     os.environ.get('DATABASE_URL', 'postgres:///warbler'))
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ECHO'] = False
+app.config['SQLALCHEMY_ECHO'] = True
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = True
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', development_secret_key)
 toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
@@ -31,7 +32,7 @@ connect_db(app)
 
 @app.before_request
 def add_user_to_g():
-    """If we're logged in, add curr user to Flask global."""
+    """runs before each request. if logged in, add curr user to Flask global."""
 
     if CURR_USER_KEY in session:
         g.user = User.query.get(session[CURR_USER_KEY])
@@ -61,8 +62,8 @@ def signup():
 
     If form not valid, present form.
 
-    If the there already is a user with that username: flash message
-    and re-present form.
+    If there already is a user with that username: flash message
+    and re-render form.
     """
 
     form = UserAddForm()
@@ -113,7 +114,10 @@ def login():
 def logout():
     """Handle logout of user."""
 
-    # IMPLEMENT THIS
+    do_logout()
+
+    flash('Bye!', 'success')
+    return redirect('/login')
 
 
 ##############################################################################
@@ -211,7 +215,23 @@ def stop_following(follow_id):
 def profile():
     """Update profile for current user."""
 
-    # IMPLEMENT THIS
+    user = g.user
+    form = UpdateUserForm(obj=user)
+
+    if form.validate_on_submit():
+        if User.authenticate(user.username, form.password.data):
+            user.username = form.username.data
+            user.email = form.email.data
+            user.image_url = form.image_url.data or "/static/images/default-pic.png"
+            user.header_image_url = form.header_image_url.data or "/static/images/warbler-hero.jpg"
+            user.bio = form.bio.data
+
+            db.session.commit()
+            return redirect(f"/users/{user.id}")
+
+        flash("Incorrect password. Try again", 'danger')
+
+    return render_template('users/edit.html', form=form)
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -292,8 +312,10 @@ def homepage():
     """
 
     if g.user:
+        followed_users_ids = [followed.id for followed in g.user.following]
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(followed_users_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
@@ -302,6 +324,12 @@ def homepage():
 
     else:
         return render_template('home-anon.html')
+
+@app.errorhandler(404)
+def page_not_found(e):
+    """404 NOT FOUND page."""
+
+    return render_template('404.html'), 404
 
 
 ##############################################################################
