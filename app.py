@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request, flash, redirect, session, g
+from flask import Flask, render_template, request, flash, redirect, session, g, abort
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 from secrets import development_secret_key
@@ -180,6 +180,18 @@ def users_followers(user_id):
     user = User.query.get_or_404(user_id)
     return render_template('users/followers.html', user=user)
 
+@app.route('/users/<int:user_id>/likes')
+def users_likes(user_id):
+    """Show list of messages liked by the user."""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    user = User.query.get_or_404(user_id)
+    likes = user.likes
+
+    return render_template('users/likes.html', user=user, likes=likes)
 
 @app.route('/users/follow/<int:follow_id>', methods=['POST'])
 def add_follow(follow_id):
@@ -225,6 +237,7 @@ def profile():
             user.image_url = form.image_url.data or "/static/images/default-pic.png"
             user.header_image_url = form.header_image_url.data or "/static/images/warbler-hero.jpg"
             user.bio = form.bio.data
+            user.location = form.location.data
 
             db.session.commit()
             return redirect(f"/users/{user.id}")
@@ -298,6 +311,25 @@ def messages_destroy(message_id):
 
     return redirect(f"/users/{g.user.id}")
 
+@app.route('/messages/<int:message_id>/like', methods=["POST"])
+def messages_like(message_id):
+    """Like or unlike a message. If message already liked, it is removed from likes. Else, added to likes. """
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    liked_msg = Message.query.get_or_404(message_id)
+
+    if liked_msg in g.user.likes: 
+        g.user.likes = [like for like in g.user.likes if like != liked_msg]
+    else: 
+        g.user.likes.append(liked_msg)
+
+    db.session.commit()
+
+    return redirect("/")
+
 
 ##############################################################################
 # Homepage and error pages
@@ -308,11 +340,14 @@ def homepage():
     """Show homepage:
 
     - anon users: no messages
-    - logged in: 100 most recent messages of followed_users
+    - logged in: 100 most recent messages of followed_users & self
     """
 
     if g.user:
+        
         followed_users_ids = [followed.id for followed in g.user.following]
+        followed_users_ids.append(g.user.id)
+        
         messages = (Message
                     .query
                     .filter(Message.user_id.in_(followed_users_ids))
@@ -320,7 +355,9 @@ def homepage():
                     .limit(100)
                     .all())
 
-        return render_template('home.html', messages=messages)
+        likes_ids = [msg.id for msg in g.user.likes]
+
+        return render_template('home.html', messages=messages, likes=likes_ids)
 
     else:
         return render_template('home-anon.html')
